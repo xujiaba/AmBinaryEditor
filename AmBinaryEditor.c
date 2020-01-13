@@ -378,6 +378,27 @@ static XMLCONTENTCHUNK *FindTagStartChunk(PARSER *ap, char *name, uint32_t deep)
 	return target;
 }
 
+static int CountTargetTag(PARSER *ap, char *name)
+{
+	STRING_CHUNK *sc = ap->string_chunk;
+	XMLCONTENTCHUNK *root = ap->xmlcontent_chunk;
+	XMLCONTENTCHUNK *node = root;
+	int count = 0;
+	while (node)
+	{
+        if (node->chunk_type == CHUNK_STARTTAG)
+        {
+            if (strcmp((const char *)sc->strings[node->start_tag_chunk->name], name) == 0)
+            {
+				count += 1;
+            }
+        }
+        node = node->child;
+	}
+
+	return count;
+}
+
 static int InitAttribute(PARSER *ap, ATTRIBUTE *attr, const char *name, uint32_t type, char *value,
     uint32_t resource_id, int flag, int32_t *extra_size)
 {
@@ -695,6 +716,83 @@ static int RemoveAttribute(PARSER *ap, char *tag_name, uint32_t deep, uint32_t a
     return 0;
 }
 
+
+static char *strrpc(char *str,char *oldstr,char *newstr){
+    char bstr[strlen(str)];//转换缓冲区
+    memset(bstr,0,sizeof(bstr));
+	int i = 0;
+	
+	while(i < strlen(str))
+    {
+		if(!strncmp(str+i,oldstr,strlen(oldstr))){//查找目标字符串
+            strcat(bstr,newstr);
+            i += strlen(oldstr) - 1;
+        }else{
+        	strncat(bstr,str + i,1);//保存一字节进缓冲区
+	    }
+		i++;
+    }
+ 
+    strcpy(str,bstr);
+    return str;
+}
+
+// 批量修改Attribute Value
+static int BatchModifyAttribute(PARSER *ap, char *tag_name, uint32_t attr_type, const char *attr_name,
+    char *attr_value, char *pack_value, uint32_t resource_id, int32_t *extra_size)
+{
+    XMLCONTENTCHUNK *target = NULL;
+    ATTRIBUTE *list = NULL;
+    STRING_CHUNK *sc = ap->string_chunk;
+	int tag_count;
+	char tmp[128];
+    if (tag_name == NULL || attr_name == NULL || attr_value == NULL || pack_value == NULL || strlen(attr_name) <= 0)
+    {
+        fprintf(stderr, "ERROR: Illegal parameters.\n");
+        return -1;
+    }
+
+	tag_count = CountTargetTag(ap, tag_name);
+	
+	while(tag_count > 0){
+		
+		target = FindTagStartChunk(ap, tag_name, tag_count);
+		
+		if (target == NULL)
+		{
+			return -1;
+		}
+		list = target->start_tag_chunk->attr;
+		if (list == NULL)
+		{
+			fprintf(stderr, "ERROR: tag_name: '%s' attr is NULL.\n", tag_name);
+			return -1;
+		}
+
+		while(list)
+		{
+			if (strcmp((const char *)sc->strings[list->name], attr_name) == 0)
+			{
+				if(strstr((const char *)sc->strings[list->string], pack_value) != NULL){
+					strcpy(tmp, (const char *)sc->strings[list->string]);
+					strrpc(tmp, pack_value, attr_value);
+
+					list->string = GetStringIndex(sc, tmp, 1, extra_size) ? GetStringIndex(sc, tmp, 1, extra_size) : list->string;
+					list->data = GetStringIndex(sc, tmp, 1, extra_size) ? GetStringIndex(sc, tmp, 1, extra_size) : list->data;
+					
+				}
+				
+			}
+			list = list->next;
+		}
+		
+		tag_count -= 1;
+	}
+
+    return 0;
+}
+
+
 static int HandleAttribute(PARSER *ap, OPTIONS *options, int32_t *extra_size)
 {
     switch (options->mode)
@@ -708,6 +806,9 @@ static int HandleAttribute(PARSER *ap, OPTIONS *options, int32_t *extra_size)
     case MODE_REMOVE:
         return RemoveAttribute(ap, options->tag_name, options->deep, options->attr_type, options->attr_name,
         options->attr_value, options->resource_id, extra_size);
+	case MODE_BATCH:
+	    return BatchModifyAttribute(ap, options->tag_name, options->attr_type, options->attr_name,
+        options->attr_value, options->pack_value, options->resource_id, extra_size);
     default:
         return -1;
     }

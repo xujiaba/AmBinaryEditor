@@ -10,6 +10,7 @@ typedef enum _MODE
     MODE_ADD = 0,
     MODE_MODIFY,
     MODE_REMOVE,
+	MODE_BATCH,
 } MODE;
 
 typedef enum _COMMAND
@@ -32,6 +33,7 @@ typedef struct _OPTIONS
     uint32_t attr_type;
     char attr_name[128];
     char attr_value[128];
+	char pack_value[128];
     uint32_t resource_id;
 
     char input_file[128];

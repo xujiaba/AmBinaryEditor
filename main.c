@@ -211,6 +211,19 @@ int main(int argc, char *argv[])
         strncpy(options->tag_name, argv[0], 128);
         options->mode = MODE_REMOVE;
     }
+	else if (strcmp(argv[0], "--batch") == 0)
+    {
+        argc -= 1;
+        argv += 1;
+        if (!argc)
+        {
+            fprintf(stderr, "ERROR: No argument supplied for '--add' option.\n");
+            want_usage = 1;
+            goto bail;
+        }
+        strncpy(options->tag_name, argv[0], 128);
+        options->mode = MODE_BATCH;
+    }
     else
     {
         fprintf(stderr, "ERROR: Unknown mode '%s'.\n", argv[1]);
@@ -387,6 +400,17 @@ int main(int argc, char *argv[])
                         goto bail;
                     }
                     strncpy(options->output_file, argv[0], 128);
+                    break;
+				case 'p':
+                    argc--;
+                    argv++;
+                    if (!argc)
+                    {
+                        fprintf(stderr, "ERROR: No argument supplied for '-p' option.\n");
+                        want_usage = 1;
+                        goto bail;
+                    }
+                    strncpy(options->pack_value, argv[0], 128);
                     break;
                 default:
                     fprintf(stderr, "ERROR: Unknown flag '-%c'.\n", *cp);
